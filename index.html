@@ -3,28 +3,76 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>全自動歷史博物館 2.0</title>
+    <title>歷史全自動博物館｜數位特稿館</title>
     <script src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
     <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
     <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
     <script src="https://cdn.tailwindcss.com"></script>
     <link href="https://cdn.jsdelivr.net/npm/lucide-static@0.321.0/font/lucide.min.css" rel="stylesheet">
     <style>
-        @import url('https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;700;900&family=Noto+Serif+TC:wght@600;900&display=swap');
-        body { font-family: 'Noto Sans TC', sans-serif; }
+        @import url('https://fonts.googleapis.com/css2?family=Noto+Serif+TC:wght@600;900&family=Noto+Sans+TC:wght@400;700;900&display=swap');
+        
+        :root {
+            --paper: #fcfaf7;
+            --ink: #1a1c1e;
+        }
+
+        body { 
+            font-family: 'Noto Sans TC', sans-serif; 
+            background-color: var(--paper);
+            color: var(--ink);
+        }
+        
         .font-serif { font-family: 'Noto Serif TC', serif; }
-        ::-webkit-scrollbar { width: 5px; }
-        ::-webkit-scrollbar-track { background: transparent; }
-        ::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 10px; }
+        
+        .feature-content h1, .feature-content h2, .feature-content h3 {
+            font-family: 'Noto Serif TC', serif;
+            color: #1a1c1e;
+            margin-top: 2rem;
+            margin-bottom: 1rem;
+        }
+
+        .feature-content h2 { 
+            font-size: 1.875rem; 
+            border-bottom: 2px solid #e2e8f0;
+            padding-bottom: 0.5rem;
+        }
+
+        .feature-content p {
+            line-height: 2;
+            margin-bottom: 1.5rem;
+            font-size: 1.125rem;
+            text-align: justify;
+        }
+
+        .feature-content table {
+            width: 100%;
+            border-collapse: collapse;
+            margin: 2rem 0;
+            background: #fff;
+            border-radius: 12px;
+            overflow: hidden;
+            box-shadow: 0 4px 6px -1px rgb(0 0 0 / 0.05);
+        }
+
+        .feature-content th { background: #f8fafc; padding: 12px; text-align: left; font-weight: 900; }
+        .feature-content td { padding: 12px; border-top: 1px solid #f1f5f9; }
+
+        .glass-nav {
+            backdrop-filter: blur(10px);
+            background: rgba(255, 255, 255, 0.8);
+        }
+
+        .custom-scroll::-webkit-scrollbar { width: 4px; }
+        .custom-scroll::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 10px; }
     </style>
 </head>
-<body class="bg-slate-50 text-slate-900">
+<body>
     <div id="root"></div>
 
     <script type="text/babel">
         const { useState, useEffect } = React;
 
-        // 您的 Google Apps Script 部署網址
         const GAS_API_URL = "https://script.google.com/macros/s/AKfycbyYNPgAMmqciydGXzwMkWlQ57NUNDSgnCPbhvykYN_CiP61iF3zSxyWrcJed_vYdvAknQ/exec";
 
         const Icon = ({ name, size = 20, className = "" }) => (
@@ -34,135 +82,124 @@
         const App = () => {
             const [lessons, setLessons] = useState([]);
             const [loading, setLoading] = useState(true);
-            const [selectedLesson, setSelectedLesson] = useState(null);
+            const [selected, setSelected] = useState(null);
             const [searchTerm, setSearchTerm] = useState('');
-            const [showAnswer, setShowAnswer] = useState(false);
 
             useEffect(() => {
-                const loadData = async () => {
-                    try {
-                        const res = await fetch(GAS_API_URL);
-                        const data = await res.json();
+                fetch(GAS_API_URL)
+                    .then(res => res.json())
+                    .then(data => {
                         setLessons(data);
-                        if (data.length > 0) setSelectedLesson(data[data.length - 1]);
-                    } catch (err) {
-                        console.error("API Fetch Error:", err);
-                    } finally {
+                        if (data.length > 0) setSelected(data[data.length - 1]);
                         setLoading(false);
-                    }
-                };
-                loadData();
+                    })
+                    .catch(() => setLoading(false));
             }, []);
 
             const filtered = lessons.filter(l => 
-                l.topic?.toLowerCase().includes(searchTerm.toLowerCase()) || 
-                l.era?.toLowerCase().includes(searchTerm.toLowerCase())
+                l.topic?.includes(searchTerm) || l.era?.includes(searchTerm)
             );
 
-            const renderContent = (lesson) => {
-                if (!lesson || !lesson.fullContent) return "內容讀取中...";
-                const clean = lesson.fullContent.replace(/```json[\s\S]*?```/g, "");
-                const parts = clean.split('---');
-                return parts.length >= 3 ? parts.slice(2).join('---').trim() : clean.trim();
+            const renderArticle = (content) => {
+                if (!content) return null;
+                // 移除 JSON 與 YAML，轉換 Markdown 的簡單呈現
+                let body = content.replace(/```json[\s\S]*?```/g, "").split('---');
+                return body.length >= 3 ? body.slice(2).join('---').trim() : body[0].trim();
             };
 
-            if (loading) {
-                return (
-                    <div className="h-screen w-screen flex flex-col items-center justify-center bg-white">
-                        <div className="w-8 h-8 border-4 border-indigo-600 border-t-transparent rounded-full animate-spin mb-4"></div>
-                        <p className="text-xs font-bold tracking-widest text-slate-400 uppercase">Museum Syncing...</p>
-                    </div>
-                );
-            }
+            if (loading) return (
+                <div className="h-screen flex flex-col items-center justify-center space-y-4">
+                    <div className="w-12 h-12 border-4 border-indigo-600 border-t-transparent rounded-full animate-spin"></div>
+                    <p className="text-sm font-bold tracking-widest text-slate-400">正在鋪設歷史長廊...</p>
+                </div>
+            );
 
             return (
-                <div className="flex h-screen w-screen overflow-hidden">
-                    {/* 側邊導航 */}
-                    <aside className="w-80 bg-white border-r border-slate-200 flex flex-col shadow-sm">
-                        <div className="p-8 pb-6">
+                <div className="flex h-screen">
+                    {/* 左側：精緻列表 */}
+                    <aside className="w-96 bg-white border-r border-slate-200 flex flex-col z-20 shadow-2xl">
+                        <div className="p-8 border-b border-slate-100">
                             <div className="flex items-center gap-3 mb-8">
-                                <div className="p-2.5 bg-indigo-600 rounded-2xl text-white shadow-lg shadow-indigo-100">
+                                <div className="p-3 bg-slate-900 rounded-2xl text-white shadow-xl">
                                     <Icon name="history" size={24} />
                                 </div>
-                                <h1 className="text-xl font-black tracking-tighter">歷史全自動館</h1>
+                                <div>
+                                    <h1 className="text-xl font-black tracking-tighter">歷史博物館</h1>
+                                    <p className="text-[10px] text-slate-400 font-bold uppercase tracking-widest">Automation Archive</p>
+                                </div>
                             </div>
                             <div className="relative">
-                                <Icon name="search" size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
+                                <Icon name="search" size={16} className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400" />
                                 <input 
-                                    className="w-full pl-10 pr-4 py-3 bg-slate-100 rounded-2xl text-sm border-none focus:ring-2 focus:ring-indigo-500 outline-none transition-all"
-                                    placeholder="搜尋朝代、主題..."
+                                    className="w-full pl-12 pr-4 py-3 bg-slate-50 rounded-2xl text-sm outline-none focus:ring-2 focus:ring-slate-900 transition-all"
+                                    placeholder="搜尋朝代或事件..."
                                     onChange={(e) => setSearchTerm(e.target.value)}
                                 />
                             </div>
                         </div>
                         
-                        <div className="flex-1 overflow-y-auto px-4 pb-8 space-y-3">
-                            {filtered.length > 0 ? filtered.map((lesson, idx) => (
+                        <div className="flex-1 overflow-y-auto p-6 space-y-4 custom-scroll">
+                            {filtered.map((item, idx) => (
                                 <button
-                                    key={lesson.fileName || idx}
-                                    onClick={() => { setSelectedLesson(lesson); setShowAnswer(false); }}
-                                    className={`w-full text-left p-5 rounded-3xl transition-all duration-300 ${
-                                        selectedLesson?.fileName === lesson.fileName 
-                                        ? 'bg-indigo-600 text-white shadow-xl shadow-indigo-200 -translate-y-1' 
-                                        : 'hover:bg-slate-50 text-slate-500'
+                                    key={item.fileName || idx}
+                                    onClick={() => setSelected(item)}
+                                    className={`w-full text-left p-6 rounded-[2rem] transition-all group ${
+                                        selected?.fileName === item.fileName 
+                                        ? 'bg-slate-900 text-white shadow-2xl -translate-y-1' 
+                                        : 'hover:bg-slate-100 text-slate-500'
                                     }`}
                                 >
-                                    <div className={`text-[10px] font-black uppercase tracking-widest mb-1 ${selectedLesson?.fileName === lesson.fileName ? 'text-indigo-200' : 'text-indigo-500'}`}>
-                                        {lesson.era}
+                                    <div className={`text-[10px] font-black tracking-[0.2em] uppercase mb-2 ${selected?.fileName === item.fileName ? 'text-indigo-400' : 'text-indigo-600'}`}>
+                                        {item.era}
                                     </div>
-                                    <h3 className="font-bold text-sm leading-snug">{lesson.topic}</h3>
+                                    <h3 className="font-bold text-base leading-tight font-serif">{item.topic}</h3>
                                 </button>
-                            )) : (
-                                <div className="text-center py-12 text-slate-300 text-xs italic font-sans">無相符結果</div>
-                            )}
+                            ))}
                         </div>
                     </aside>
 
-                    {/* 內容顯示 */}
-                    <main className="flex-1 overflow-y-auto bg-slate-50">
-                        {selectedLesson ? (
-                            <div className="max-w-4xl mx-auto py-20 px-12">
-                                <div className="flex items-center gap-2 text-indigo-600 font-black text-xs tracking-widest mb-4 uppercase">
-                                    <Icon name="calendar-days" size={14} /> {selectedLesson.era}
+                    {/* 右側：特稿顯示區 */}
+                    <main className="flex-1 overflow-y-auto bg-[#fcfaf7] selection:bg-indigo-100 selection:text-indigo-900 custom-scroll">
+                        {selected ? (
+                            <div className="max-w-4xl mx-auto py-24 px-12">
+                                {/* 文章前導 */}
+                                <div className="mb-12">
+                                    <div className="flex items-center gap-3 text-indigo-600 font-black text-xs tracking-widest mb-6 uppercase">
+                                        <Icon name="bookmark" size={14} /> {selected.era}
+                                    </div>
+                                    <h2 className="text-6xl font-black text-slate-900 mb-10 leading-[1.1] font-serif tracking-tight">
+                                        {selected.topic}
+                                    </h2>
+                                    
+                                    {/* 快速人物卡片 */}
+                                    {selected.characters && selected.characters.length > 0 && (
+                                        <div className="flex flex-wrap gap-3 mb-12">
+                                            {selected.characters.map(c => (
+                                                <div key={c} className="px-4 py-2 bg-white border border-slate-200 rounded-full text-xs font-bold text-slate-600 shadow-sm flex items-center gap-2">
+                                                    <div className="w-2 h-2 bg-indigo-500 rounded-full animate-pulse"></div>
+                                                    {c}
+                                                </div>
+                                            ))}
+                                        </div>
+                                    )}
                                 </div>
-                                <h2 className="text-6xl font-black text-slate-900 mb-12 leading-[1.1] tracking-tight font-serif">
-                                    {selectedLesson.topic}
-                                </h2>
 
-                                <article className="bg-white p-14 rounded-[3rem] shadow-sm border border-slate-200/50 leading-relaxed font-serif text-xl text-slate-700 mb-12 shadow-indigo-100/10">
+                                {/* 正文內容區 */}
+                                <div className="feature-content font-serif leading-loose">
                                     <div className="whitespace-pre-wrap">
-                                        {renderContent(selectedLesson)}
+                                        {renderArticle(selected.fullContent)}
                                     </div>
-                                </article>
+                                </div>
 
-                                <section className="bg-slate-900 text-white p-10 rounded-[2.5rem] shadow-2xl relative overflow-hidden group">
-                                    <div className="relative z-10">
-                                        <h3 className="flex items-center gap-3 font-black text-xl mb-4 text-indigo-400 uppercase tracking-tighter">
-                                            <Icon name="help-circle" /> 課後思維啟發
-                                        </h3>
-                                        <button 
-                                            onClick={() => setShowAnswer(!showAnswer)} 
-                                            className="px-8 py-3 bg-indigo-600 hover:bg-indigo-500 transition-all rounded-2xl text-sm font-black active:scale-95"
-                                        >
-                                            {showAnswer ? '隱藏解析' : '看答案與解析'}
-                                        </button>
-                                        {showAnswer && (
-                                            <div className="mt-8 p-6 bg-slate-800 rounded-2xl text-indigo-100 text-sm border border-slate-700 animate-in fade-in slide-in-from-top-4 duration-500">
-                                                詳細解析已收錄在原始文件末端，請查閱 Markdown 檔案。
-                                            </div>
-                                        )}
-                                    </div>
-                                </section>
-
-                                <footer className="mt-24 pt-8 border-t border-slate-200 flex justify-between items-center text-slate-300 text-[10px] font-bold tracking-[0.3em] uppercase">
-                                    <span>History Sync 2.0</span>
-                                    <span>Update: 2026-03-10</span>
+                                <footer className="mt-32 pt-12 border-t border-slate-200 flex justify-between items-center text-slate-300 text-[10px] font-bold tracking-[0.4em] uppercase">
+                                    <span>Digital History Feature</span>
+                                    <span>Sync: 2026-03-10</span>
                                 </footer>
                             </div>
                         ) : (
                             <div className="h-full flex flex-col items-center justify-center text-slate-200">
-                                <Icon name="book-marked" size={80} className="mb-6 opacity-10" />
-                                <p className="font-black tracking-widest text-sm uppercase">Select a Topic</p>
+                                <Icon name="book-open" size={80} className="mb-6 opacity-20" />
+                                <p className="font-black tracking-widest text-sm uppercase">Curating History...</p>
                             </div>
                         )}
                     </main>
